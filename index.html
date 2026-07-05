@@ -117,21 +117,21 @@
   #map{ position:absolute; inset:0; background: #0a1014; }
 
   /* Leaflet dark tuning */
-  .leaflet-container{ background: #0a1014; }
+  .leaflet-container{ background: #e8ecee; }
   .leaflet-control-attribution{
-    background: rgba(6,10,13,0.75) !important;
-    color: var(--text-dim) !important;
+    background: rgba(255,255,255,0.85) !important;
+    color: #55636b !important;
     font-size: 9px !important;
   }
-  .leaflet-control-attribution a{ color: var(--text-dim) !important; }
+  .leaflet-control-attribution a{ color: #3d6b7d !important; }
   .leaflet-control-zoom a{
-    background: var(--panel) !important;
-    color: var(--phosphor) !important;
-    border-color: var(--panel-line) !important;
+    background: #ffffff !important;
+    color: #1a4d46 !important;
+    border-color: #d4dadd !important;
   }
 
   .plane-icon{
-    filter: drop-shadow(0 0 6px rgba(94,234,212,0.8));
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45));
     transform-origin: center;
   }
 
@@ -238,8 +238,8 @@
 
   function initMap(){
     map = L.map('map', { zoomControl:true, attributionControl:true }).setView([50.9, 7.0], 5);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19
     }).addTo(map);
   }
@@ -249,7 +249,7 @@
     return `<div class="plane-icon" style="transform:rotate(${rot}deg)">
       <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
         <path d="M12 1.5 L15 10 L22 14 L22 16.5 L15 14.5 L15 19.5 L18.5 22 L18.5 23.5 L12 22 L5.5 23.5 L5.5 22 L9 19.5 L9 14.5 L2 16.5 L2 14 L9 10 Z"
-          fill="#5eead4" stroke="#04211d" stroke-width="0.6"/>
+          fill="#0f766e" stroke="#ffffff" stroke-width="0.8"/>
       </svg>
     </div>`;
   }
@@ -308,7 +308,7 @@
     if(marker){ marker.setLatLng(latlng); marker.setIcon(icon); }
     else { marker = L.marker(latlng, { icon }).addTo(map); }
 
-    const targetZoom = pos.onGround ? 16 : Math.max(map.getZoom(), 9);
+    const targetZoom = pos.onGround ? 18 : Math.max(map.getZoom(), 9);
     map.setView(latlng, targetZoom, { animate:true });
 
     const card = document.getElementById('info-card');
