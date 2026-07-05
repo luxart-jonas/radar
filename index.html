@@ -274,7 +274,7 @@
     return `<div class="plane-icon" style="transform:rotate(${rot}deg)">
       <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
         <path d="M12 1.5 L15 10 L22 14 L22 16.5 L15 14.5 L15 19.5 L18.5 22 L18.5 23.5 L12 22 L5.5 23.5 L5.5 22 L9 19.5 L9 14.5 L2 16.5 L2 14 L9 10 Z"
-          fill="#0f766e" stroke="#ffffff" stroke-width="0.8"/>
+          fill="#f59e0b" stroke="#ffffff" stroke-width="0.8"/>
       </svg>
     </div>`;
   }
@@ -399,14 +399,33 @@
     try{ localStorage.setItem(GATE_KEY_STORAGE, gateKeyInput.value.trim()); }catch(_){}
   });
 
-  function fmtGateBlock(label, seg){
+  function fmtTime(timeObj){
+    if(!timeObj) return null;
+    const raw = timeObj.local || timeObj.utc;
+    if(!raw) return null;
+    const d = new Date(raw);
+    if(isNaN(d.getTime())) return raw;
+    return d.toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function fmtSegment(label, seg){
     if(!seg) return '';
+    let html = `<div style="margin-top:8px;"><b>${label}${seg.airport ? ' · ' + (seg.airport.iata || seg.airport.icao || '') : ''}</b></div>`;
+    if(seg.airport && seg.airport.name){
+      html += `<div>${seg.airport.name}${seg.airport.municipalityName ? ' (' + seg.airport.municipalityName + ')' : ''}</div>`;
+    }
+    const sched = fmtTime(seg.scheduledTime);
+    const revised = fmtTime(seg.revisedTime);
+    const actual = fmtTime(seg.actualTime);
+    if(sched) html += `<div>Planzeit: <b>${sched}</b></div>`;
+    if(revised && revised !== sched) html += `<div>Voraussichtlich: <b>${revised}</b></div>`;
+    if(actual) html += `<div>Tatsächlich: <b>${actual}</b></div>`;
     const parts = [];
     if(seg.terminal) parts.push('Terminal ' + seg.terminal);
     if(seg.gate) parts.push('Gate ' + seg.gate);
     if(seg.baggageBelt) parts.push('Band ' + seg.baggageBelt);
-    if(parts.length === 0) return `<div>${label}: <b>keine Angabe</b></div>`;
-    return `<div>${label}: <b>${parts.join(' · ')}</b></div>`;
+    if(parts.length > 0) html += `<div>${parts.join(' · ')}</div>`;
+    return html;
   }
 
   document.getElementById('gate-btn').addEventListener('click', async function(){
@@ -424,7 +443,7 @@
       return;
     }
     gateInfoEl.classList.add('visible');
-    gateInfoEl.innerHTML = 'Lade Gate-Info …';
+    gateInfoEl.innerHTML = 'Lade Flug-Info …';
     try{
       const res = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(rawFlight)}`, {
         headers: {
@@ -443,10 +462,17 @@
       }
       const f = list[0];
       let html = '';
+      if(f.airline && f.airline.name) html += `<div><b>${f.airline.name}</b>${f.flight && f.flight.number ? ' · ' + f.flight.number : ''}</div>`;
       if(f.status) html += `<div>Status: <b>${f.status}</b></div>`;
-      html += fmtGateBlock('Abflug', f.departure);
-      html += fmtGateBlock('Ankunft', f.arrival);
-      gateInfoEl.innerHTML = html || 'Keine Gate-Daten in der Antwort enthalten.';
+      if(f.aircraft){
+        const acParts = [];
+        if(f.aircraft.model) acParts.push(f.aircraft.model);
+        if(f.aircraft.reg) acParts.push(f.aircraft.reg);
+        if(acParts.length) html += `<div>${acParts.join(' · ')}</div>`;
+      }
+      html += fmtSegment('Abflug', f.departure);
+      html += fmtSegment('Ankunft', f.arrival);
+      gateInfoEl.innerHTML = html || 'Keine Detaildaten in der Antwort enthalten.';
     }catch(err){
       gateInfoEl.innerHTML = 'Fehler: ' + err.message;
     }
