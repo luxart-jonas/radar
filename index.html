@@ -278,20 +278,24 @@
     return Array.from(candidates);
   }
 
+  const PROXY_URL = 'https://ormpszktwwiahjooukjk.supabase.co/functions/v1/super-action';
+
   async function fetchPosition(candidates){
-    const res = await fetch('https://opensky-network.org/api/states/all');
-    if(!res.ok) throw new Error('OpenSky nicht erreichbar (HTTP ' + res.status + ')');
-    const data = await res.json();
-    if(!data.states) return null;
-    const wanted = candidates.map(c => c.toUpperCase());
-    for(const s of data.states){
-      const cs = (s[1] || '').trim().toUpperCase();
-      if(cs && wanted.includes(cs)){
+    for(const cs of candidates){
+      const res = await fetch(PROXY_URL + '?callsign=' + encodeURIComponent(cs));
+      if(!res.ok) continue;
+      const data = await res.json();
+      if(data.ac && data.ac.length > 0){
+        const a = data.ac[0];
+        const onGround = a.alt_baro === 'ground';
         return {
-          icao24: s[0], callsign: cs, lon: s[5], lat: s[6],
-          baroAlt: s[7], onGround: s[8], velocity: s[9],
-          heading: s[10], geoAlt: s[13], lastContact: s[4],
-          time: data.time
+          callsign: (a.flight || cs).trim(),
+          lat: a.lat, lon: a.lon,
+          onGround: onGround,
+          altFt: onGround ? null : (typeof a.alt_baro === 'number' ? a.alt_baro : (a.alt_geom ?? null)),
+          speedKmh: a.gs != null ? Math.round(a.gs * 1.852) : null,
+          heading: a.track ?? 0,
+          ageSec: a.seen_pos != null ? Math.round(a.seen_pos) : (a.seen != null ? Math.round(a.seen) : null)
         };
       }
     }
@@ -311,10 +315,9 @@
     const card = document.getElementById('info-card');
     card.classList.add('visible');
     document.getElementById('info-callsign').textContent = pos.callsign;
-    document.getElementById('info-alt').textContent = pos.onGround ? '—' : (pos.geoAlt != null ? Math.round(pos.geoAlt) + ' m' : '—');
-    document.getElementById('info-speed').textContent = pos.onGround ? '—' : (pos.velocity != null ? Math.round(pos.velocity*3.6) + ' km/h' : '—');
-    const ageSec = pos.time && pos.lastContact ? Math.max(0, pos.time - pos.lastContact) : null;
-    document.getElementById('info-age').textContent = ageSec != null ? 'vor ' + ageSec + ' s' : '—';
+    document.getElementById('info-alt').textContent = pos.onGround ? '—' : (pos.altFt != null ? Math.round(pos.altFt) + ' ft' : '—');
+    document.getElementById('info-speed').textContent = pos.onGround ? '—' : (pos.speedKmh != null ? pos.speedKmh + ' km/h' : '—');
+    document.getElementById('info-age').textContent = pos.ageSec != null ? 'vor ' + pos.ageSec + ' s' : '—';
     document.getElementById('ground-badge').style.display = pos.onGround ? 'inline-block' : 'none';
 
     setStatus('live', pos.callsign + ' gefunden');
