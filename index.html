@@ -65,6 +65,26 @@
   @keyframes sweep{ to{ transform: rotate(360deg); } }
 
   form{ display:flex; gap:8px; }
+  #gate-row{ display:flex; gap:8px; margin-top:8px; }
+  #gate-row input{
+    flex:1; background: #08100f; border: 1px solid var(--panel-line);
+    color: var(--text); font-family:'JetBrains Mono', monospace; font-size: 11px;
+    padding: 7px 10px; border-radius: 4px; outline:none;
+  }
+  #gate-row input::placeholder{ color: var(--text-dim); }
+  #gate-btn{
+    background: transparent; border: 1px solid var(--phosphor-dim);
+    color: var(--phosphor); font-size: 11px; padding: 0 12px;
+    font-family:'Space Grotesk', sans-serif; font-weight:600;
+    border-radius:4px; cursor:pointer; white-space:nowrap;
+  }
+  #gate-btn:hover{ background: rgba(94,234,212,0.08); }
+  #gate-info{
+    margin-top:10px; font-size:11px; color: var(--text-dim);
+    display:none; line-height:1.6;
+  }
+  #gate-info.visible{ display:block; }
+  #gate-info b{ color: var(--phosphor); }
   input[type="text"]{
     flex:1;
     background: #08100f;
@@ -193,12 +213,17 @@
       <input type="text" id="flight-input" placeholder="Flugnummer, z.B. LH441" maxlength="10">
       <button type="submit" id="search-btn">Suchen</button>
     </form>
+    <div id="gate-row">
+      <input type="text" id="gate-key-input" placeholder="RapidAPI-Key (für Gate-Info, optional)">
+      <button type="button" id="gate-btn">Gate anzeigen</button>
+    </div>
   </header>
 
   <div id="status-bar">
     <span><span class="dot"></span><span id="status-text">Bereit</span></span>
     <span id="last-update"></span>
   </div>
+  <div id="gate-info"></div>
 
   <div style="position:relative; flex:1;">
     <div id="map"></div>
@@ -362,6 +387,69 @@
     try{ localStorage.setItem(STORAGE_KEY, raw.trim().toUpperCase()); }catch(_){}
     runSearch();
     startPolling();
+  });
+
+  const GATE_KEY_STORAGE = 'radar_rapidapi_key';
+  const gateKeyInput = document.getElementById('gate-key-input');
+  try{
+    const savedKey = localStorage.getItem(GATE_KEY_STORAGE);
+    if(savedKey) gateKeyInput.value = savedKey;
+  }catch(_){}
+  gateKeyInput.addEventListener('change', function(){
+    try{ localStorage.setItem(GATE_KEY_STORAGE, gateKeyInput.value.trim()); }catch(_){}
+  });
+
+  function fmtGateBlock(label, seg){
+    if(!seg) return '';
+    const parts = [];
+    if(seg.terminal) parts.push('Terminal ' + seg.terminal);
+    if(seg.gate) parts.push('Gate ' + seg.gate);
+    if(seg.baggageBelt) parts.push('Band ' + seg.baggageBelt);
+    if(parts.length === 0) return `<div>${label}: <b>keine Angabe</b></div>`;
+    return `<div>${label}: <b>${parts.join(' · ')}</b></div>`;
+  }
+
+  document.getElementById('gate-btn').addEventListener('click', async function(){
+    const apiKey = gateKeyInput.value.trim();
+    const gateInfoEl = document.getElementById('gate-info');
+    const rawFlight = document.getElementById('flight-input').value.trim().toUpperCase();
+    if(!apiKey){
+      gateInfoEl.classList.add('visible');
+      gateInfoEl.innerHTML = 'Bitte zuerst einen RapidAPI-Key eintragen.';
+      return;
+    }
+    if(!rawFlight){
+      gateInfoEl.classList.add('visible');
+      gateInfoEl.innerHTML = 'Bitte zuerst eine Flugnummer eingeben.';
+      return;
+    }
+    gateInfoEl.classList.add('visible');
+    gateInfoEl.innerHTML = 'Lade Gate-Info …';
+    try{
+      const res = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(rawFlight)}`, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com'
+        }
+      });
+      if(!res.ok){
+        gateInfoEl.innerHTML = `Fehler: HTTP ${res.status} (Key korrekt? Kontingent aufgebraucht?)`;
+        return;
+      }
+      const list = await res.json();
+      if(!Array.isArray(list) || list.length === 0){
+        gateInfoEl.innerHTML = 'Keine Flugdaten gefunden für ' + rawFlight + '.';
+        return;
+      }
+      const f = list[0];
+      let html = '';
+      if(f.status) html += `<div>Status: <b>${f.status}</b></div>`;
+      html += fmtGateBlock('Abflug', f.departure);
+      html += fmtGateBlock('Ankunft', f.arrival);
+      gateInfoEl.innerHTML = html || 'Keine Gate-Daten in der Antwort enthalten.';
+    }catch(err){
+      gateInfoEl.innerHTML = 'Fehler: ' + err.message;
+    }
   });
 
   initMap();
